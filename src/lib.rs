@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
+use colored::Colorize;
 use memchr::memmem;
 use walkdir::WalkDir;
 
@@ -262,6 +263,132 @@ pub fn is_binary(data: &[u8]) -> bool {
     probe.contains(&0)
 }
 
+pub fn canonical_clean(path: &Path) -> PathBuf {
+    let canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let s = canon.to_string_lossy();
+    if let Some(stripped) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        canon
+    }
+}
+
+pub fn run_edit(dir_arg: Option<PathBuf>, op: Operation, dry_run: bool, show_diff: bool) -> Result<()> {
+    let dir = match dir_arg {
+        Some(d) => {
+            let canonical = canonical_clean(&d);
+            if let Err(e) = config::save_dir(&canonical.to_string_lossy()) {
+                eprintln!("警告：无法保存默认目录: {e}");
+            }
+            canonical
+        }
+        None => match config::load_dir()? {
+            Some(saved) => PathBuf::from(saved),
+            None => bail!(
+                "未指定目录，也没有已保存的默认目录。\n请用 `txtbatch --dir <目录> ...` 或先运行 `txtbatch set-dir <目录>`"
+            ),
+        },
+    };
+
+    println!("目录: {}", dir.display());
+    let summary = process_dir(&dir, &op, dry_run, DEFAULT_CTX)?;
+
+    if dry_run {
+        println!("[dry-run] 以下为预览，未写入任何文件");
+    }
+    let verb = match &op {
+        Operation::Replace { .. } => "替换",
+        Operation::Insert { .. } => "插入",
+    };
+    println!(
+        "扫描文件 {count} 个，修改 {modified} 个，共 {edits} 处{verb}",
+        count = summary.files_scanned,
+        modified = summary.files_modified,
+        edits = summary.total_edits
+    );
+    if summary.binary_skipped > 0 {
+        println!("跳过二进制文件 {} 个", summary.binary_skipped);
+    }
+    if !summary.modified.is_empty() {
+        if show_diff {
+            for f in &summary.details {
+                println!(
+                    "文件: {}（{} 处）",
+                    f.path.display(),
+                    f.diffs.len()
+                );
+                for d in &f.diffs {
+                    println!("第 {} 行", d.line_no);
+                    println!("  {}", format!("- {}", d.start).red());
+                    println!("  {}", format!("+ {}", d.new).green());
+                }
+            }
+        } else {
+            println!("修改的文件:");
+            for f in &summary.details {
+                println!("  {}（{} 处）", f.path.display(), f.diffs.len());
+            }
+        }
+    }
+    if !summary.unmatched.is_empty() {
+        println!("未找到匹配的文件 {} 个", summary.unmatched.len());
+    }
+    for (p, err) in &summary.errors {
+        println!("错误[{}]: {err}", p.display());
+    }
+
+    Ok(())
+}
+
+pub fn load_cjk_font(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    let font_paths = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
+    ];
+
+    for path in &font_paths {
+        if let Ok(data) = std::fs::read(path) {
+            fonts.font_data.insert(
+                "cjk".to_owned(),
+                std::sync::Arc::new(egui::FontData::from_owned(data)),
+            );
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                family.push("cjk".to_owned());
+            }
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                family.push("cjk".to_owned());
+            }
+            ctx.set_fonts(fonts);
+            return;
+        }
+    }
+
+    eprintln!("警告：未找到中文字体，中文可能显示为方块");
+}
+
+pub fn launch_gui() -> Result<()> {
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([900.0, 600.0])
+            .with_min_inner_size([600.0, 400.0])
+            .with_title("txtbatch - 批量文本工具"),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "txtbatch",
+        options,
+        Box::new(|cc| {
+            load_cjk_font(&cc.egui_ctx);
+            Ok(Box::new(gui::App::default()))
+        }),
+    )
+    .map_err(|e| anyhow::anyhow!("GUI 启动失败: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,5 +574,24 @@ mod tests {
         assert_eq!(diffs[1].line_no, 1);
         assert_eq!(diffs[0].new, "X ab");
         assert_eq!(diffs[1].new, "ab Y");
+    }
+
+    #[test]
+    fn canonical_clean_strips_verbatim_prefix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("sub");
+        std::fs::create_dir(&dir).unwrap();
+        let out = canonical_clean(&dir);
+        assert!(out.is_absolute());
+        assert!(out.exists());
+        assert!(!out.to_string_lossy().starts_with(r"\\?\"));
+    }
+
+    #[test]
+    fn canonical_clean_falls_back_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("nope");
+        let out = canonical_clean(&missing);
+        assert_eq!(out, missing);
     }
 }

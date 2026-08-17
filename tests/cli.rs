@@ -4,7 +4,7 @@ use std::process::{Command, Output};
 use tempfile::tempdir;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_txtbatch")
+    env!("CARGO_BIN_EXE_cli")
 }
 
 fn run_in(appdata: &std::path::Path, args: &[&str]) -> Output {
