@@ -1,7 +1,7 @@
 use std::fs;
 
 use tempfile::tempdir;
-use txtbatch::{process_dir, Operation};
+use txtbatch::{process_dir, Operation, DEFAULT_CTX};
 
 #[test]
 fn replace_writes_files_recursively() {
@@ -14,7 +14,7 @@ fn replace_writes_files_recursively() {
         find: "foo".into(),
         replace: "FOO".into(),
     };
-    let s = process_dir(tmp.path(), &op, false).unwrap();
+    let s = process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
 
     assert_eq!(s.files_scanned, 2);
     assert_eq!(s.files_modified, 1);
@@ -37,7 +37,7 @@ fn dry_run_does_not_write() {
         find: "foo".into(),
         replace: "bar".into(),
     };
-    let s = process_dir(tmp.path(), &op, true).unwrap();
+    let s = process_dir(tmp.path(), &op, true, DEFAULT_CTX).unwrap();
 
     assert_eq!(s.files_modified, 1);
     assert_eq!(s.total_edits, 1);
@@ -53,7 +53,7 @@ fn insert_end_to_end() {
         after: "你好".into(),
         insert: " ".into(),
     };
-    process_dir(tmp.path(), &op, false).unwrap();
+    process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
 
     assert_eq!(
         fs::read_to_string(tmp.path().join("a.txt")).unwrap(),
@@ -71,7 +71,7 @@ fn binary_files_skipped_and_counted() {
         find: "foo".into(),
         replace: "x".into(),
     };
-    let s = process_dir(tmp.path(), &op, false).unwrap();
+    let s = process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
 
     assert_eq!(s.binary_skipped, 1);
     assert_eq!(s.files_scanned, 2);
@@ -89,7 +89,7 @@ fn no_match_files_reported() {
         find: "zzz".into(),
         replace: "x".into(),
     };
-    let s = process_dir(tmp.path(), &op, false).unwrap();
+    let s = process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
 
     assert_eq!(s.files_modified, 0);
     assert_eq!(s.unmatched.len(), 1);
@@ -103,7 +103,7 @@ fn empty_directory() {
         find: "a".into(),
         replace: "b".into(),
     };
-    let s = process_dir(tmp.path(), &op, false).unwrap();
+    let s = process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
     assert_eq!(s.files_scanned, 0);
     assert_eq!(s.files_modified, 0);
 }
@@ -116,7 +116,7 @@ fn missing_dir_errors() {
         find: "a".into(),
         replace: "b".into(),
     };
-    assert!(process_dir(&missing, &op, false).is_err());
+    assert!(process_dir(&missing, &op, false, DEFAULT_CTX).is_err());
 }
 
 #[test]
@@ -128,5 +128,5 @@ fn file_path_errors() {
         find: "a".into(),
         replace: "b".into(),
     };
-    assert!(process_dir(&f, &op, false).is_err());
+    assert!(process_dir(&f, &op, false, DEFAULT_CTX).is_err());
 }

@@ -6,6 +6,7 @@ use memchr::memmem;
 use walkdir::WalkDir;
 
 pub mod config;
+pub mod gui;
 
 pub const DEFAULT_CTX: usize = 24;
 
@@ -162,7 +163,7 @@ pub struct Summary {
     pub errors: Vec<(PathBuf, String)>,
 }
 
-pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool) -> Result<Summary> {
+pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool, ctx: usize) -> Result<Summary> {
     if !dir.exists() {
         bail!("目录不存在: {}", dir.display());
     }
@@ -213,7 +214,7 @@ pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool) -> Result<Summary>
         summary.modified.push(path.to_path_buf());
         summary.details.push(FileEdit {
             path: path.to_path_buf(),
-            diffs: build_diffs(&data, &edits, DEFAULT_CTX),
+            diffs: build_diffs(&data, &edits, ctx),
         });
 
         if !dry_run {

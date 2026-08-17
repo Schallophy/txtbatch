@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
@@ -16,7 +16,7 @@ struct Args {
     dir: Option<PathBuf>,
 
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 
     /// 仅预览统计，不实际写入文件
     #[arg(long, global = true)]
@@ -25,6 +25,10 @@ struct Args {
     /// 显示每一处的 diff 详情（行号与修改前后内容）
     #[arg(long, global = true)]
     diff: bool,
+
+    /// 启动图形界面
+    #[arg(long)]
+    gui: bool,
 }
 
 #[derive(Subcommand)]
@@ -62,20 +66,24 @@ enum Command {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    if args.gui {
+        return launch_gui();
+    }
+
     match args.command {
-        Command::Replace { find, replace } => {
+        Some(Command::Replace { find, replace }) => {
             if find.is_empty() {
                 bail!("查找文本不能为空");
             }
             run_edit(args.dir, Operation::Replace { find, replace }, args.dry_run, args.diff)
         }
-        Command::Insert { after, insert } => {
+        Some(Command::Insert { after, insert }) => {
             if after.is_empty() {
                 bail!("定位文本不能为空");
             }
             run_edit(args.dir, Operation::Insert { after, insert }, args.dry_run, args.diff)
         }
-        Command::SetDir { path } => {
+        Some(Command::SetDir { path }) => {
             let dir = canonical_clean(&path);
             if !dir.is_dir() {
                 bail!("目录不存在: {}", path.display());
@@ -85,7 +93,7 @@ fn main() -> Result<()> {
             println!("已设置默认目录: {dir}");
             Ok(())
         }
-        Command::ShowDir => {
+        Some(Command::ShowDir) => {
             match config::load_dir()? {
                 Some(dir) => {
                     println!("当前默认目录: {dir}");
@@ -97,12 +105,64 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Command::ClearDir => {
+        Some(Command::ClearDir) => {
             config::clear_dir()?;
             println!("已清除默认目录");
             Ok(())
         }
+        None => {
+            launch_gui()
+        }
     }
+}
+
+fn launch_gui() -> Result<()> {
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([900.0, 600.0])
+            .with_min_inner_size([600.0, 400.0])
+            .with_title("txtbatch - 批量文本工具"),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "txtbatch",
+        options,
+        Box::new(|cc| {
+            load_cjk_font(&cc.egui_ctx);
+            Ok(Box::new(txtbatch::gui::App::default()))
+        }),
+    )
+    .map_err(|e| anyhow::anyhow!("GUI 启动失败: {e}"))
+}
+
+fn load_cjk_font(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    let font_paths = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
+    ];
+
+    for path in &font_paths {
+        if let Ok(data) = std::fs::read(path) {
+            fonts.font_data.insert(
+                "cjk".to_owned(),
+                std::sync::Arc::new(egui::FontData::from_owned(data)),
+            );
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                family.push("cjk".to_owned());
+            }
+            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                family.push("cjk".to_owned());
+            }
+            ctx.set_fonts(fonts);
+            return;
+        }
+    }
+
+    eprintln!("警告：未找到中文字体，中文可能显示为方块");
 }
 
 fn canonical_clean(path: &Path) -> PathBuf {
@@ -133,7 +193,7 @@ fn run_edit(dir_arg: Option<PathBuf>, op: Operation, dry_run: bool, show_diff: b
     };
 
     println!("目录: {}", dir.display());
-    let summary = process_dir(&dir, &op, dry_run)?;
+    let summary = process_dir(&dir, &op, dry_run, txtbatch::DEFAULT_CTX)?;
 
     if dry_run {
         println!("[dry-run] 以下为预览，未写入任何文件");
