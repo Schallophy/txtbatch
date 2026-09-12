@@ -36,6 +36,15 @@ enum Command {
         #[arg(value_name = "替换")]
         replace: String,
     },
+    /// 将文件中的文本重复指定次数
+    Repeat {
+        /// 要查找并重复的文本
+        #[arg(value_name = "查找")]
+        find: String,
+        /// 匹配文本最终保留的份数
+        #[arg(value_name = "次数")]
+        times: usize,
+    },
     /// 在指定文本之后插入内容
     Insert {
         /// 定位文本
@@ -66,6 +75,15 @@ fn main() -> Result<()> {
                 bail!("查找文本不能为空");
             }
             run_edit(args.dir, Operation::Replace { find, replace }, args.dry_run, args.diff)
+        }
+        Command::Repeat { find, times } => {
+            if find.is_empty() {
+                bail!("查找文本不能为空");
+            }
+            if times == 0 {
+                bail!("重复次数必须大于 0");
+            }
+            run_edit(args.dir, Operation::Repeat { find, times }, args.dry_run, args.diff)
         }
         Command::Insert { after, insert } => {
             if after.is_empty() {

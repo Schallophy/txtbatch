@@ -3,13 +3,14 @@ import { computed, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
-type Mode = "replace" | "insert";
+type Mode = "replace" | "repeat" | "insert";
 
 interface ChangeRequest {
   dir: string;
   mode: Mode;
   find: string;
   replaceWith: string;
+  repeatCount: number;
   after: string;
   insertText: string;
 }
@@ -38,6 +39,7 @@ const mode = ref<Mode>("replace");
 const directory = ref("");
 const find = ref("");
 const replaceWith = ref("");
+const repeatCount = ref(2);
 const after = ref("");
 const insertText = ref("");
 const preview = ref<ChangeResponse | null>(null);
@@ -46,7 +48,9 @@ const busyAction = ref<"preview" | "apply" | null>(null);
 const errorMessage = ref("");
 
 const canPreview = computed(() => Boolean(directory.value.trim()) &&
-  (mode.value === "replace" ? Boolean(find.value) : Boolean(after.value)));
+  (mode.value === "replace" || mode.value === "repeat"
+    ? Boolean(find.value) && (mode.value === "replace" || (Number.isInteger(repeatCount.value) && repeatCount.value > 0))
+    : Boolean(after.value)));
 
 const emptyState = computed(() => {
   if (errorMessage.value) {
@@ -71,6 +75,7 @@ const request = computed<ChangeRequest>(() => ({
   mode: mode.value,
   find: find.value,
   replaceWith: replaceWith.value,
+  repeatCount: repeatCount.value,
   after: after.value,
   insertText: insertText.value,
 }));
@@ -196,6 +201,15 @@ onMounted(async () => {
               >替换</button>
               <button
                 class="segment"
+                :class="{ 'is-selected': mode === 'repeat' }"
+                type="button"
+                role="tab"
+                :aria-selected="mode === 'repeat'"
+                :disabled="busy"
+                @click="selectMode('repeat')"
+              >重复</button>
+              <button
+                class="segment"
                 :class="{ 'is-selected': mode === 'insert' }"
                 type="button"
                 role="tab"
@@ -228,6 +242,32 @@ onMounted(async () => {
               :disabled="busy"
               @input="handleInput"
             ></textarea>
+          </section>
+
+          <section v-else-if="mode === 'repeat'" class="control-section operation-fields">
+            <div class="section-title">查找与重复</div>
+            <label class="field-label" for="repeatFindInput">查找文本</label>
+            <textarea
+              id="repeatFindInput"
+              v-model="find"
+              class="text-input text-area"
+              rows="3"
+              placeholder="输入要重复的内容"
+              :disabled="busy"
+              @input="handleInput"
+            ></textarea>
+            <label class="field-label" for="repeatCountInput">重复次数</label>
+            <input
+              id="repeatCountInput"
+              v-model.number="repeatCount"
+              class="text-input"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="例如 3"
+              :disabled="busy"
+              @input="handleInput"
+            />
           </section>
 
           <section v-else class="control-section operation-fields">

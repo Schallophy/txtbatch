@@ -35,7 +35,7 @@ fn help_lists_commands() {
     let out = Command::new(bin()).arg("--help").output().unwrap();
     assert_eq!(out.status.code(), Some(0));
     let text = stdout(&out);
-    for cmd in ["replace", "insert", "set-dir", "show-dir", "clear-dir", "--dir"] {
+    for cmd in ["replace", "repeat", "insert", "set-dir", "show-dir", "clear-dir", "--dir"] {
         assert!(text.contains(cmd), "帮助信息缺少 `{cmd}`");
     }
     for en in ["Usage:", "Commands:", "Options:", "Print help", "Print version"] {
@@ -119,6 +119,32 @@ fn set_dir_then_run_without_dir() {
     assert!(stdout(&run).contains(&format!("目录: {}", canonical_display(work.path()))));
     assert!(stdout(&run).contains("共 1 处替换"));
     assert_eq!(fs::read_to_string(&target).unwrap(), "FOO bar");
+}
+
+#[test]
+fn repeat_end_to_end_via_cli() {
+    let cfg = tempdir().unwrap();
+    let work = tempdir().unwrap();
+    let target = work.path().join("a.txt");
+    fs::write(&target, "xxx123xxx").unwrap();
+    let dir = work.path().to_str().unwrap();
+
+    let out = run_in(cfg.path(), &["--dir", dir, "repeat", "123", "3"]);
+    assert_eq!(out.status.code(), Some(0));
+    assert!(stdout(&out).contains("共 1 处重复"));
+    assert_eq!(fs::read_to_string(&target).unwrap(), "xxx123123123xxx");
+}
+
+#[test]
+fn repeat_zero_errors() {
+    let cfg = tempdir().unwrap();
+    let work = tempdir().unwrap();
+    let out = run_in(
+        cfg.path(),
+        &["--dir", work.path().to_str().unwrap(), "repeat", "123", "0"],
+    );
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("重复次数必须大于 0"));
 }
 
 #[test]

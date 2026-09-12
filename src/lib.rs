@@ -37,6 +37,7 @@ pub struct FileEdit {
 #[derive(Debug, Clone)]
 pub enum Operation {
     Replace { find: String, replace: String },
+    Repeat { find: String, times: usize },
     Insert { after: String, insert: String },
 }
 
@@ -44,6 +45,7 @@ impl Operation {
     pub fn name(&self) -> &'static str {
         match self {
             Operation::Replace { .. } => "替换",
+            Operation::Repeat { .. } => "重复",
             Operation::Insert { .. } => "插入",
         }
     }
@@ -58,6 +60,17 @@ impl Operation {
                         start: m,
                         end: m + f.len(),
                         replacement: r.to_vec(),
+                    })
+                    .collect()
+            }
+            Operation::Repeat { find, times } => {
+                let f = find.as_bytes();
+                let replacement = f.repeat(*times);
+                memmem::find_iter(data, f)
+                    .map(|m| Edit {
+                        start: m,
+                        end: m + f.len(),
+                        replacement: replacement.clone(),
                     })
                     .collect()
             }
@@ -338,6 +351,7 @@ pub fn run_edit(
     }
     let verb = match &op {
         Operation::Replace { .. } => "替换",
+        Operation::Repeat { .. } => "重复",
         Operation::Insert { .. } => "插入",
     };
     println!(
@@ -385,6 +399,18 @@ mod tests {
         let (out, n) = replace_all_bytes(b"hello world hello", b"hello", b"hi");
         assert_eq!(out, b"hi world hi");
         assert_eq!(n, 2);
+    }
+
+    #[test]
+    fn repeat_basic() {
+        let op = Operation::Repeat {
+            find: "123".into(),
+            times: 3,
+        };
+        let edits = op.edits_for(b"xxx123xxx");
+        let (out, n) = apply_edits(b"xxx123xxx", &edits);
+        assert_eq!(out, b"xxx123123123xxx");
+        assert_eq!(n, 1);
     }
 
     #[test]
@@ -468,6 +494,15 @@ mod tests {
         let (out, n) = apply_edits(b"foo foo", &edits);
         assert_eq!(out, b"bar bar");
         assert_eq!(n, 2);
+
+        let op = Operation::Repeat {
+            find: "foo".into(),
+            times: 2,
+        };
+        let edits = op.edits_for(b"foo");
+        let (out, n) = apply_edits(b"foo", &edits);
+        assert_eq!(out, b"foofoo");
+        assert_eq!(n, 1);
 
         let op = Operation::Insert {
             after: "foo".into(),

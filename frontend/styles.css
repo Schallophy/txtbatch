@@ -50,7 +50,8 @@ h1 { font-size: 24px; letter-spacing: -0.035em; }
 input.text-input { height: 34px; padding: 0 10px; }
 textarea.text-input { display: block; min-height: 76px; padding: 9px 10px; resize: vertical; line-height: 1.45; }
 .field-label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 12px; }
-.segmented-control { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-tint); }
+.field-hint { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.segmented-control { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-tint); }
 .segment { height: 32px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 600; }
 .segment.is-selected { color: var(--text); background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 .segment:hover:not(.is-selected) { color: var(--text); }

@@ -10,6 +10,7 @@ struct ChangeRequest {
     mode: String,
     find: String,
     replace_with: String,
+    repeat_count: usize,
     after: String,
     insert_text: String,
 }
@@ -52,6 +53,12 @@ fn operation_from(request: &ChangeRequest) -> Result<Operation, String> {
         "replace" if !request.find.is_empty() => Ok(Operation::Replace {
             find: request.find.clone(),
             replace: request.replace_with.clone(),
+        }),
+        "repeat" if request.find.is_empty() => Err("查找文本不能为空".to_string()),
+        "repeat" if request.repeat_count == 0 => Err("重复次数必须大于 0".to_string()),
+        "repeat" => Ok(Operation::Repeat {
+            find: request.find.clone(),
+            times: request.repeat_count,
         }),
         "insert" if !request.after.is_empty() => Ok(Operation::Insert {
             after: request.after.clone(),

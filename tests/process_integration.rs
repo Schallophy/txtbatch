@@ -32,6 +32,25 @@ fn replace_writes_files_recursively() {
 }
 
 #[test]
+fn repeat_writes_repeated_matches() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("a.txt"), "xxx123xxx").unwrap();
+
+    let op = Operation::Repeat {
+        find: "123".into(),
+        times: 3,
+    };
+    let s = process_dir(tmp.path(), &op, false, DEFAULT_CTX).unwrap();
+
+    assert_eq!(s.files_modified, 1);
+    assert_eq!(s.total_edits, 1);
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("a.txt")).unwrap(),
+        "xxx123123123xxx"
+    );
+}
+
+#[test]
 fn dry_run_does_not_write() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("a.txt"), "foo").unwrap();
