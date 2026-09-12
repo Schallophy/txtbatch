@@ -1,12 +1,12 @@
 # txtbatch
 
-A batch text find/replace/insert tool for all text files in a directory, with both CLI and GUI interfaces.
+A batch text find/replace/insert tool for all text files in a directory, with CLI and Tauri desktop interfaces.
 
 ## Features
 
 - **Find & Replace** — replace all occurrences of text across files
 - **Insert After** — insert text after every occurrence of a pattern
-- **GUI Preview** — real-time diff preview with colored before/after view before applying changes
+- **Tauri GUI** — native desktop shell with real-time diff preview
 - **Dry Run** — preview changes without writing to disk
 - **Binary Detection** — automatically skips binary files
 - **Directory Memory** — remembers the last used directory
@@ -53,19 +53,28 @@ cli.exe show-dir
 cli.exe clear-dir
 ```
 
-### GUI
+### Tauri GUI
 
 ```bash
-# Launch the graphical interface
-gui.exe
+# Install frontend dependencies
+npm install
+
+# Launch the desktop app in development mode
+npm run tauri dev
 ```
 
-The GUI provides:
+The desktop app provides:
 - Directory selector with browse dialog
 - Replace / Insert mode toggle
 - Input fields for search and replacement text
 - Preview button to see all changes as a colored diff
-- Confirm / Cancel buttons to apply or discard changes
+- Apply / Clear buttons to apply or discard changes
+
+Build the desktop application:
+
+```bash
+npm run tauri build
+```
 
 ## License
 

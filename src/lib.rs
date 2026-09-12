@@ -7,7 +7,6 @@ use memchr::memmem;
 use walkdir::WalkDir;
 
 pub mod config;
-pub mod gui;
 
 pub const DEFAULT_CTX: usize = 24;
 
@@ -338,55 +337,6 @@ pub fn run_edit(dir_arg: Option<PathBuf>, op: Operation, dry_run: bool, show_dif
     }
 
     Ok(())
-}
-
-pub fn load_cjk_font(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-
-    let font_paths = [
-        r"C:\Windows\Fonts\msyh.ttc",
-        r"C:\Windows\Fonts\simhei.ttf",
-        r"C:\Windows\Fonts\simsun.ttc",
-        r"C:\Windows\Fonts\msyhbd.ttc",
-    ];
-
-    for path in &font_paths {
-        if let Ok(data) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "cjk".to_owned(),
-                std::sync::Arc::new(egui::FontData::from_owned(data)),
-            );
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-                family.push("cjk".to_owned());
-            }
-            if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
-                family.push("cjk".to_owned());
-            }
-            ctx.set_fonts(fonts);
-            return;
-        }
-    }
-
-    eprintln!("警告：未找到中文字体，中文可能显示为方块");
-}
-
-pub fn launch_gui() -> Result<()> {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([900.0, 600.0])
-            .with_min_inner_size([600.0, 400.0])
-            .with_title("txtbatch - 批量文本工具"),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "txtbatch",
-        options,
-        Box::new(|cc| {
-            load_cjk_font(&cc.egui_ctx);
-            Ok(Box::new(gui::App::default()))
-        }),
-    )
-    .map_err(|e| anyhow::anyhow!("GUI 启动失败: {e}"))
 }
 
 #[cfg(test)]
