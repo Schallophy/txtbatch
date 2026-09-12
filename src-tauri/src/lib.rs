@@ -118,13 +118,17 @@ fn save_directory(dir: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn preview_changes(request: ChangeRequest) -> Result<ChangeResponse, String> {
-    execute(request, true)
+async fn preview_changes(request: ChangeRequest) -> Result<ChangeResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || execute(request, true))
+        .await
+        .map_err(|error| format!("预览任务失败: {error}"))?
 }
 
 #[tauri::command]
-fn apply_changes(request: ChangeRequest) -> Result<ChangeResponse, String> {
-    execute(request, false)
+async fn apply_changes(request: ChangeRequest) -> Result<ChangeResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || execute(request, false))
+        .await
+        .map_err(|error| format!("应用任务失败: {error}"))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

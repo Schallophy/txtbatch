@@ -42,6 +42,7 @@ const after = ref("");
 const insertText = ref("");
 const preview = ref<ChangeResponse | null>(null);
 const busy = ref(false);
+const busyAction = ref<"preview" | "apply" | null>(null);
 const errorMessage = ref("");
 
 const canPreview = computed(() => Boolean(directory.value.trim()) &&
@@ -73,6 +74,9 @@ const request = computed<ChangeRequest>(() => ({
   after: after.value,
   insertText: insertText.value,
 }));
+
+const busyLabel = computed(() => busyAction.value === "apply" ? "正在应用..." : "正在扫描...");
+const loadingTitle = computed(() => busyAction.value === "apply" ? "正在应用修改" : "正在扫描文件");
 
 function clearPreview(): void {
   preview.value = null;
@@ -112,6 +116,7 @@ async function chooseDirectory(): Promise<void> {
 async function runPreview(): Promise<void> {
   if (!canPreview.value || busy.value) return;
   busy.value = true;
+  busyAction.value = "preview";
   errorMessage.value = "";
   try {
     preview.value = await invoke<ChangeResponse>("preview_changes", { request: request.value });
@@ -120,12 +125,14 @@ async function runPreview(): Promise<void> {
     errorMessage.value = String(error);
   } finally {
     busy.value = false;
+    busyAction.value = null;
   }
 }
 
 async function applyChanges(): Promise<void> {
   if (!preview.value || !canPreview.value || busy.value) return;
   busy.value = true;
+  busyAction.value = "apply";
   errorMessage.value = "";
   try {
     preview.value = await invoke<ChangeResponse>("apply_changes", { request: request.value });
@@ -134,6 +141,7 @@ async function applyChanges(): Promise<void> {
     errorMessage.value = String(error);
   } finally {
     busy.value = false;
+    busyAction.value = null;
   }
 }
 
@@ -247,14 +255,24 @@ onMounted(async () => {
           </section>
 
           <div class="actions">
-            <button class="button button-primary" type="button" :disabled="busy || !canPreview" @click="runPreview">预览更改</button>
+            <button class="button button-primary" type="button" :disabled="busy || !canPreview" @click="runPreview">
+              <span class="button-content">
+                <span v-if="busy && busyAction === 'preview'" class="spinner" aria-hidden="true"></span>
+                {{ busy && busyAction === 'preview' ? busyLabel : '预览更改' }}
+              </span>
+            </button>
             <div class="secondary-actions">
-              <button class="button button-success" type="button" :disabled="busy || !preview || !canPreview" @click="applyChanges">应用更改</button>
+              <button class="button button-success" type="button" :disabled="busy || !preview || !canPreview" @click="applyChanges">
+                <span class="button-content">
+                  <span v-if="busy && busyAction === 'apply'" class="spinner" aria-hidden="true"></span>
+                  {{ busy && busyAction === 'apply' ? busyLabel : '应用更改' }}
+                </span>
+              </button>
               <button class="button button-secondary" type="button" :disabled="busy || !preview" @click="clearPreview">清除预览</button>
             </div>
           </div>
 
-          <section v-if="preview" class="control-section">
+          <section v-if="preview && !busy" class="control-section">
             <div class="section-title">扫描结果</div>
             <div class="summary-card surface-card">
               <div class="summary-row"><span><i class="summary-dot dot-neutral"></i>扫描文件</span><strong>{{ preview.filesScanned }}</strong></div>
@@ -271,7 +289,7 @@ onMounted(async () => {
           <div>
             <div class="title-line">
               <h2>预览更改</h2>
-              <span v-if="preview" class="preview-state" :class="preview.filesModified === 0 ? 'muted' : 'blue'">
+              <span v-if="preview && !busy" class="preview-state" :class="preview.filesModified === 0 ? 'muted' : 'blue'">
                 {{ preview.filesModified === 0 ? '没有发现改动' : '实时差异' }}
               </span>
             </div>
@@ -280,7 +298,13 @@ onMounted(async () => {
         </div>
 
         <div class="preview-body">
-          <template v-if="preview && preview.filesModified > 0">
+          <div v-if="busy" class="loading-state surface-card">
+            <span class="spinner spinner-large" aria-hidden="true"></span>
+            <h3>{{ loadingTitle }}</h3>
+            <p>文件较多时可能需要一些时间，请稍候。</p>
+          </div>
+
+          <template v-else-if="preview && preview.filesModified > 0">
             <div class="metrics-grid">
               <div class="metric-card surface-card"><span>将修改文件</span><strong class="blue-text">{{ preview.filesModified }}</strong></div>
               <div class="metric-card surface-card"><span>修改处数</span><strong class="green-text">{{ preview.totalEdits }}</strong></div>

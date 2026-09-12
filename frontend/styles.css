@@ -59,6 +59,10 @@ textarea.text-input { display: block; min-height: 76px; padding: 9px 10px; resiz
 .button { width: 100%; min-height: 39px; border: 0; border-radius: 9px; font-size: 13px; font-weight: 650; transition: filter 140ms, transform 140ms; }
 .button:not(:disabled):active { transform: scale(0.99); }
 .button:not(:disabled):hover { filter: brightness(0.96); }
+.button-content { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 700ms linear infinite; }
+.spinner-large { width: 30px; height: 30px; color: var(--blue); border-width: 3px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .button-primary { color: #fff; background: var(--blue); box-shadow: 0 4px 10px rgba(0, 122, 255, 0.18); }
 .secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
 .button-success { color: #fff; background: var(--green); }
@@ -79,6 +83,9 @@ h2 { font-size: 24px; letter-spacing: -0.035em; }
 .preview-state.muted { color: var(--muted); background: var(--surface-tint); }
 .preview-body { margin-top: 17px; }
 .empty-state { display: flex; min-height: 410px; flex-direction: column; align-items: center; justify-content: center; padding: 35px; text-align: center; }
+.loading-state { display: flex; min-height: 410px; flex-direction: column; align-items: center; justify-content: center; padding: 35px; text-align: center; }
+.loading-state h3 { margin-top: 16px; font-size: 18px; letter-spacing: -0.02em; }
+.loading-state p { margin-top: 6px; color: var(--muted); font-size: 13px; }
 .empty-symbol { margin-bottom: 13px; color: var(--blue); font-size: 34px; line-height: 1; }
 .empty-state h3 { font-size: 18px; letter-spacing: -0.02em; }
 .empty-state p { margin-top: 6px; color: var(--muted); font-size: 13px; }
