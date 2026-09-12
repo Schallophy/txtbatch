@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use colored::Colorize;
 use memchr::memmem;
+use rayon::prelude::*;
 use walkdir::WalkDir;
 
 pub mod config;
@@ -163,6 +164,48 @@ pub struct Summary {
     pub errors: Vec<(PathBuf, String)>,
 }
 
+enum FileOutcome {
+    ReadError(String),
+    Binary,
+    Unmatched,
+    Modified {
+        diffs: Vec<LineDiff>,
+        count: usize,
+        write_error: Option<String>,
+    },
+}
+
+fn process_file(path: &Path, op: &Operation, dry_run: bool, ctx: usize) -> FileOutcome {
+    let data = match fs::read(path) {
+        Ok(data) => data,
+        Err(error) => return FileOutcome::ReadError(format!("读取失败: {error}")),
+    };
+
+    if is_binary(&data) {
+        return FileOutcome::Binary;
+    }
+
+    let edits = op.edits_for(&data);
+    if edits.is_empty() {
+        return FileOutcome::Unmatched;
+    }
+
+    let (new_data, count) = apply_edits(&data, &edits);
+    let write_error = if dry_run {
+        None
+    } else {
+        fs::write(path, &new_data)
+            .err()
+            .map(|error| format!("写入失败: {error}"))
+    };
+
+    FileOutcome::Modified {
+        diffs: build_diffs(&data, &edits, ctx),
+        count,
+        write_error,
+    }
+}
+
 pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool, ctx: usize) -> Result<Summary> {
     if !dir.exists() {
         bail!("目录不存在: {}", dir.display());
@@ -172,6 +215,7 @@ pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool, ctx: usize) -> Res
     }
 
     let mut summary = Summary::default();
+    let mut paths = Vec::new();
     let walker = WalkDir::new(dir).sort_by_file_name();
     for entry in walker {
         let entry = match entry {
@@ -186,42 +230,34 @@ pub fn process_dir(dir: &Path, op: &Operation, dry_run: bool, ctx: usize) -> Res
         if !entry.file_type().is_file() {
             continue;
         }
-        let path = entry.path();
-        summary.files_scanned += 1;
+        paths.push(entry.into_path());
+    }
 
-        let data = match fs::read(path) {
-            Ok(d) => d,
-            Err(e) => {
-                summary.errors.push((path.to_path_buf(), format!("读取失败: {e}")));
-                continue;
-            }
-        };
+    summary.files_scanned = paths.len();
+    let outcomes: Vec<FileOutcome> = paths
+        .par_iter()
+        .map(|path| process_file(path, op, dry_run, ctx))
+        .collect();
 
-        if is_binary(&data) {
-            summary.binary_skipped += 1;
-            continue;
-        }
-
-        let edits = op.edits_for(&data);
-        if edits.is_empty() {
-            summary.unmatched.push(path.to_path_buf());
-            continue;
-        }
-        let (new_data, count) = apply_edits(&data, &edits);
-
-        summary.files_modified += 1;
-        summary.total_edits += count;
-        summary.modified.push(path.to_path_buf());
-        summary.details.push(FileEdit {
-            path: path.to_path_buf(),
-            diffs: build_diffs(&data, &edits, ctx),
-        });
-
-        if !dry_run {
-            if let Err(e) = fs::write(path, &new_data) {
-                summary
-                    .errors
-                    .push((path.to_path_buf(), format!("写入失败: {e}")));
+    for (path, outcome) in paths.into_iter().zip(outcomes) {
+        match outcome {
+            FileOutcome::ReadError(error) => summary.errors.push((path, error)),
+            FileOutcome::Binary => summary.binary_skipped += 1,
+            FileOutcome::Unmatched => summary.unmatched.push(path),
+            FileOutcome::Modified {
+                diffs,
+                count,
+                write_error,
+            } => {
+                summary.files_modified += 1;
+                summary.total_edits += count;
+                summary.modified.push(path.clone());
+                summary.details.push(FileEdit { path, diffs });
+                if let Some(error) = write_error {
+                    summary
+                        .errors
+                        .push((summary.modified.last().unwrap().clone(), error));
+                }
             }
         }
     }
@@ -272,7 +308,12 @@ pub fn canonical_clean(path: &Path) -> PathBuf {
     }
 }
 
-pub fn run_edit(dir_arg: Option<PathBuf>, op: Operation, dry_run: bool, show_diff: bool) -> Result<()> {
+pub fn run_edit(
+    dir_arg: Option<PathBuf>,
+    op: Operation,
+    dry_run: bool,
+    show_diff: bool,
+) -> Result<()> {
     let dir = match dir_arg {
         Some(d) => {
             let canonical = canonical_clean(&d);
@@ -311,11 +352,7 @@ pub fn run_edit(dir_arg: Option<PathBuf>, op: Operation, dry_run: bool, show_dif
     if !summary.modified.is_empty() {
         if show_diff {
             for f in &summary.details {
-                println!(
-                    "文件: {}（{} 处）",
-                    f.path.display(),
-                    f.diffs.len()
-                );
+                println!("文件: {}（{} 处）", f.path.display(), f.diffs.len());
                 for d in &f.diffs {
                     println!("第 {} 行", d.line_no);
                     println!("  {}", format!("- {}", d.start).red());
@@ -352,7 +389,8 @@ mod tests {
 
     #[test]
     fn replace_chinese_bytes() {
-        let (out, n) = replace_all_bytes("你好世界".as_bytes(), "世界".as_bytes(), "中国".as_bytes());
+        let (out, n) =
+            replace_all_bytes("你好世界".as_bytes(), "世界".as_bytes(), "中国".as_bytes());
         assert_eq!(out, "你好中国".as_bytes());
         assert_eq!(n, 1);
     }
@@ -498,8 +536,16 @@ mod tests {
     fn build_diffs_one_edit_per_line() {
         let data = b"a\nb\nc";
         let edits = vec![
-            Edit { start: 2, end: 2, replacement: b"@".to_vec() },
-            Edit { start: 4, end: 4, replacement: b"@".to_vec() },
+            Edit {
+                start: 2,
+                end: 2,
+                replacement: b"@".to_vec(),
+            },
+            Edit {
+                start: 4,
+                end: 4,
+                replacement: b"@".to_vec(),
+            },
         ];
         let diffs = build_diffs(data, &edits, 24);
         assert_eq!(diffs.len(), 2);
@@ -515,8 +561,16 @@ mod tests {
     fn build_diffs_same_line_multiple_hits() {
         let data = b"ab ab";
         let edits = [
-            Edit { start: 0, end: 2, replacement: b"X".to_vec() },
-            Edit { start: 3, end: 5, replacement: b"Y".to_vec() },
+            Edit {
+                start: 0,
+                end: 2,
+                replacement: b"X".to_vec(),
+            },
+            Edit {
+                start: 3,
+                end: 5,
+                replacement: b"Y".to_vec(),
+            },
         ];
         let diffs = build_diffs(data, &edits, 24);
         assert_eq!(diffs.len(), 2);

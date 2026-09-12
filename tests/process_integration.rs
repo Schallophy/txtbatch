@@ -1,7 +1,7 @@
 use std::fs;
 
 use tempfile::tempdir;
-use txtbatch::{process_dir, Operation, DEFAULT_CTX};
+use txtbatch::{DEFAULT_CTX, Operation, process_dir};
 
 #[test]
 fn replace_writes_files_recursively() {
@@ -25,7 +25,10 @@ fn replace_writes_files_recursively() {
         fs::read_to_string(tmp.path().join("a.txt")).unwrap(),
         "FOO bar\nFOO"
     );
-    assert_eq!(fs::read_to_string(tmp.path().join("sub/b.txt")).unwrap(), "nothing");
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("sub/b.txt")).unwrap(),
+        "nothing"
+    );
 }
 
 #[test]
@@ -93,7 +96,30 @@ fn no_match_files_reported() {
 
     assert_eq!(s.files_modified, 0);
     assert_eq!(s.unmatched.len(), 1);
-    assert_eq!(fs::read_to_string(tmp.path().join("a.txt")).unwrap(), "hello");
+    assert_eq!(
+        fs::read_to_string(tmp.path().join("a.txt")).unwrap(),
+        "hello"
+    );
+}
+
+#[test]
+fn parallel_results_keep_walk_order() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("b.txt"), "foo").unwrap();
+    fs::write(tmp.path().join("a.txt"), "foo").unwrap();
+
+    let op = Operation::Replace {
+        find: "foo".into(),
+        replace: "bar".into(),
+    };
+    let summary = process_dir(tmp.path(), &op, true, DEFAULT_CTX).unwrap();
+    let names: Vec<_> = summary
+        .details
+        .iter()
+        .map(|file| file.path.file_name().unwrap().to_string_lossy().to_string())
+        .collect();
+
+    assert_eq!(names, ["a.txt", "b.txt"]);
 }
 
 #[test]

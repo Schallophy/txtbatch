@@ -8,6 +8,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive", "unicode"] }
 walkdir = "2"
 memchr = "2"
+rayon = "1"
 rust-ini = "0.19"
 colored = "2"
 
