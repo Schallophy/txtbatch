@@ -272,15 +272,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <section v-if="preview && !busy" class="control-section">
-            <div class="section-title">扫描结果</div>
-            <div class="summary-card surface-card">
-              <div class="summary-row"><span><i class="summary-dot dot-neutral"></i>扫描文件</span><strong>{{ preview.filesScanned }}</strong></div>
-              <div class="summary-row"><span><i class="summary-dot dot-blue"></i>将修改</span><strong>{{ preview.filesModified }}</strong></div>
-              <div class="summary-row"><span><i class="summary-dot dot-green"></i>修改处数</span><strong>{{ preview.totalEdits }}</strong></div>
-              <div v-if="preview.binarySkipped > 0" class="summary-row"><span><i class="summary-dot dot-orange"></i>跳过二进制</span><strong>{{ preview.binarySkipped }}</strong></div>
-            </div>
-          </section>
         </div>
       </aside>
 

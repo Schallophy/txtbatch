@@ -67,13 +67,6 @@ textarea.text-input { display: block; min-height: 76px; padding: 9px 10px; resiz
 .secondary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
 .button-success { color: #fff; background: var(--green); }
 .button-secondary { border: 1px solid var(--border); color: var(--text); background: var(--surface); }
-.summary-card { padding: 11px 12px; }
-.summary-row { display: flex; align-items: center; justify-content: space-between; min-height: 25px; color: var(--muted); font-size: 12px; }
-.summary-row > span { display: flex; align-items: center; gap: 7px; }
-.summary-row strong { color: var(--text); font-size: 13px; }
-.summary-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
-.dot-neutral { background: var(--text); } .dot-blue { background: var(--blue); } .dot-green { background: var(--green); } .dot-orange { background: var(--orange); }
-
 .preview-pane { min-width: 0; padding: 27px 28px 24px; overflow: auto; }
 .preview-heading { display: flex; justify-content: space-between; }
 .title-line { display: flex; align-items: center; gap: 10px; }
