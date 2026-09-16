@@ -5,6 +5,7 @@ A batch text find/replace/insert tool for all text files in a directory, with CL
 ## Features
 
 - **Find & Replace** — replace all occurrences of text across files
+- **Repeat** — repeat every occurrence of text a given number of times
 - **Insert After** — insert text after every occurrence of a pattern
 - **Tauri GUI** — native desktop shell with real-time diff preview
 - **Dry Run** — preview changes without writing to disk
@@ -19,12 +20,24 @@ A batch text find/replace/insert tool for all text files in a directory, with CL
 ```bash
 git clone https://github.com/Schallophy/txtbatch.git
 cd txtbatch
+```
+
+**CLI** — pure Rust, built with Cargo:
+
+```bash
 cargo build --release
 ```
 
-Binaries are produced at:
-- `target/release/cli.exe` — command-line interface
-- `target/release/gui.exe` — graphical interface (Windows, no console window)
+Produces `target/release/cli.exe`.
+
+**Desktop app** — Tauri + Vue, requires Node.js and the [Tauri prerequisites](https://tauri.app/start/prerequisites/):
+
+```bash
+npm install
+npm run tauri build
+```
+
+Produces `src-tauri/target/release/txtbatch-app.exe`. On Windows the desktop app also requires the WebView2 runtime, which is preinstalled on Windows 11 and most Windows 10 systems.
 
 ## Usage
 
@@ -33,6 +46,9 @@ Binaries are produced at:
 ```bash
 # Replace text in a directory
 cli.exe --dir /path/to/project replace "old_text" "new_text"
+
+# Repeat every match 3 times (e.g. `123` -> `123123123`)
+cli.exe --dir /path/to/project repeat "123" 3
 
 # Insert text after a pattern
 cli.exe --dir /path/to/project insert "anchor_text" "text_to_insert"
@@ -65,16 +81,12 @@ npm run tauri dev
 
 The desktop app provides:
 - Directory selector with browse dialog
-- Replace / Insert mode toggle
-- Input fields for search and replacement text
+- Replace / Repeat / Insert mode toggle
+- Input fields for the search text and its replacement, repeat count, or inserted text
 - Preview button to see all changes as a colored diff
 - Apply / Clear buttons to apply or discard changes
 
-Build the desktop application:
-
-```bash
-npm run tauri build
-```
+See [Build from source](#build-from-source) for the production build.
 
 ## License
 
