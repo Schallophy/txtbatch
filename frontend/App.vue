@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -83,6 +83,138 @@ const request = computed<ChangeRequest>(() => ({
 const busyLabel = computed(() => busyAction.value === "apply" ? "正在应用..." : "正在扫描...");
 const loadingTitle = computed(() => busyAction.value === "apply" ? "正在应用修改" : "正在扫描文件");
 
+const FILE_ROW_HEIGHT = 32;
+const DIFF_ROW_HEIGHT = 46;
+const SEPARATOR_ROW_HEIGHT = 12;
+const OVERSCAN_ROWS = 8;
+
+interface PreviewRow {
+  kind: "file" | "diff" | "separator";
+  key: string;
+  path: string;
+  count: number;
+  lineNo: number;
+  old: string;
+  new: string;
+}
+
+const diffScroll = ref<HTMLElement | null>(null);
+const scrollTop = ref(0);
+const viewportHeight = ref(520);
+let resizeObserver: ResizeObserver | null = null;
+
+const previewRows = computed<PreviewRow[]>(() => {
+  const rows: PreviewRow[] = [];
+  for (const file of preview.value?.details ?? []) {
+    rows.push({
+      kind: "file",
+      key: `file:${file.path}`,
+      path: file.path,
+      count: file.diffs.length,
+      lineNo: 0,
+      old: "",
+      new: "",
+    });
+    file.diffs.forEach((diff, index) => {
+      rows.push({
+        kind: "diff",
+        key: `diff:${file.path}:${index}`,
+        path: "",
+        count: 0,
+        lineNo: diff.lineNo,
+        old: diff.old,
+        new: diff.new,
+      });
+    });
+    rows.push({
+      kind: "separator",
+      key: `separator:${file.path}`,
+      path: "",
+      count: 0,
+      lineNo: 0,
+      old: "",
+      new: "",
+    });
+  }
+  return rows;
+});
+
+function rowHeight(row: PreviewRow): number {
+  if (row.kind === "file") return FILE_ROW_HEIGHT;
+  if (row.kind === "diff") return DIFF_ROW_HEIGHT;
+  return SEPARATOR_ROW_HEIGHT;
+}
+
+const rowOffsets = computed(() => {
+  const rows = previewRows.value;
+  const offsets = new Float64Array(rows.length + 1);
+  for (let i = 0; i < rows.length; i += 1) {
+    offsets[i + 1] = offsets[i] + rowHeight(rows[i]);
+  }
+  return offsets;
+});
+
+const totalHeight = computed(() => {
+  const offsets = rowOffsets.value;
+  return offsets[offsets.length - 1] ?? 0;
+});
+
+const visibleRows = computed(() => {
+  const rows = previewRows.value;
+  const offsets = rowOffsets.value;
+  const count = rows.length;
+  if (count === 0) return [];
+
+  const top = scrollTop.value;
+  const bottom = top + viewportHeight.value;
+
+  let lo = 0;
+  let hi = count;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (offsets[mid + 1] <= top) lo = mid + 1;
+    else hi = mid;
+  }
+
+  const start = Math.max(0, lo - OVERSCAN_ROWS);
+  let end = lo;
+  while (end < count && offsets[end] < bottom) end += 1;
+  end = Math.min(count, end + OVERSCAN_ROWS);
+
+  const items: { row: PreviewRow; top: number }[] = [];
+  for (let i = start; i < end; i += 1) {
+    items.push({ row: rows[i], top: offsets[i] });
+  }
+  return items;
+});
+
+function measureViewport(): void {
+  const el = diffScroll.value;
+  if (el) viewportHeight.value = el.clientHeight;
+}
+
+function handleDiffScroll(): void {
+  const el = diffScroll.value;
+  if (el) scrollTop.value = el.scrollTop;
+}
+
+watch(diffScroll, (el, previous) => {
+  if (previous) resizeObserver?.unobserve(previous);
+  if (el) {
+    resizeObserver?.observe(el);
+    scrollTop.value = el.scrollTop;
+    viewportHeight.value = el.clientHeight;
+  }
+});
+
+watch(preview, async () => {
+  await nextTick();
+  const el = diffScroll.value;
+  if (el) el.scrollTop = 0;
+  scrollTop.value = 0;
+  measureViewport();
+});
+
 function clearPreview(): void {
   preview.value = null;
   errorMessage.value = "";
@@ -157,6 +289,14 @@ onMounted(async () => {
   } catch (error: unknown) {
     console.error(error);
   }
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(measureViewport);
+  }
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
 });
 </script>
 
@@ -343,22 +483,33 @@ onMounted(async () => {
             </div>
 
             <div class="diff-card surface-card">
-              <div class="diff-heading"><strong>变更详情</strong><span>逐行对比</span></div>
-              <div class="diff-scroll">
-                <section v-for="file in preview.details" :key="file.path" class="file-block">
-                  <div class="file-header">
-                    <span class="file-badge">文件</span>
-                    <span class="file-path">{{ file.path }}</span>
-                    <span class="file-count">{{ file.diffs.length }} 处修改</span>
-                  </div>
-                  <div v-for="diff in file.diffs" :key="`${file.path}-${diff.lineNo}-${diff.old}`" class="diff-row">
-                    <span class="line-number">{{ String(diff.lineNo).padStart(3, ' ') }}</span>
-                    <div class="change-lines">
-                      <div class="old-line">- {{ diff.old }}</div>
-                      <div class="new-line">+ {{ diff.new }}</div>
+              <div class="diff-heading">
+                <strong>变更详情</strong>
+                <span>逐行对比 · 共 {{ preview.totalEdits }} 处</span>
+              </div>
+              <div ref="diffScroll" class="diff-scroll" @scroll.passive="handleDiffScroll">
+                <div class="diff-virtual" :style="{ height: `${totalHeight}px` }">
+                  <div
+                    v-for="item in visibleRows"
+                    :key="item.row.key"
+                    class="diff-vrow"
+                    :style="{ transform: `translateY(${item.top}px)` }"
+                  >
+                    <div v-if="item.row.kind === 'file'" class="file-header">
+                      <span class="file-badge">文件</span>
+                      <span class="file-path">{{ item.row.path }}</span>
+                      <span class="file-count">{{ item.row.count }} 处修改</span>
                     </div>
+                    <div v-else-if="item.row.kind === 'diff'" class="diff-row">
+                      <span class="line-number">{{ String(item.row.lineNo).padStart(3, ' ') }}</span>
+                      <div class="change-lines">
+                        <div class="old-line">- {{ item.row.old }}</div>
+                        <div class="new-line">+ {{ item.row.new }}</div>
+                      </div>
+                    </div>
+                    <div v-else class="file-separator"></div>
                   </div>
-                </section>
+                </div>
               </div>
             </div>
           </template>

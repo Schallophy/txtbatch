@@ -92,15 +92,17 @@ h2 { font-size: 24px; letter-spacing: -0.035em; }
 .diff-card { margin-top: 14px; padding: 14px; }
 .diff-heading { display: flex; align-items: baseline; gap: 9px; padding-bottom: 11px; }
 .diff-heading strong { font-size: 15px; } .diff-heading span { color: var(--muted); font-size: 12px; }
-.diff-scroll { max-height: 520px; overflow: auto; padding-right: 2px; }
-.file-block + .file-block { margin-top: 13px; }
-.file-header { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-tint); font-size: 12px; }
+.diff-scroll { max-height: 520px; overflow: auto; padding-right: 2px; overflow-anchor: none; }
+.diff-virtual { position: relative; }
+.diff-vrow { position: absolute; top: 0; left: 0; right: 0; }
+.file-separator { height: 12px; }
+.file-header { display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px; background: var(--surface-tint); font-size: 12px; }
 .file-badge { flex: 0 0 auto; color: var(--blue); font-size: 11px; font-weight: 700; }
 .file-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-count { flex: 0 0 auto; margin-left: auto; color: var(--muted); font-size: 11px; }
-.diff-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; padding: 9px 4px 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12px; line-height: 1.5; }
+.diff-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: start; height: 46px; padding: 4px 4px 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12px; line-height: 1.5; }
 .line-number { color: #8e8e93; text-align: right; white-space: pre; }
-.change-lines { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.change-lines { min-width: 0; white-space: pre; }
 .old-line { color: #be3731; } .new-line { margin-top: 2px; color: #269144; }
 
 @media (max-width: 860px) {
@@ -111,7 +113,7 @@ h2 { font-size: 24px; letter-spacing: -0.035em; }
   .sidebar-scroll { height: auto; max-height: none; }
   .preview-pane { overflow: visible; padding: 24px 20px 28px; }
   .empty-state { min-height: 310px; }
-  .diff-scroll { max-height: none; }
+  .diff-scroll { max-height: 65vh; }
 }
 
 @media (max-width: 520px) {
@@ -121,8 +123,6 @@ h2 { font-size: 24px; letter-spacing: -0.035em; }
   .metric-card { min-height: auto; }
   .secondary-actions { grid-template-columns: 1fr; }
   .diff-card { padding: 10px; }
-  .file-header { align-items: flex-start; flex-wrap: wrap; }
-  .file-count { margin-left: 0; }
   .diff-row { grid-template-columns: 30px minmax(0, 1fr); gap: 6px; padding-left: 0; padding-right: 0; font-size: 11px; }
   h1, h2 { font-size: 22px; }
 }
